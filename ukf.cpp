@@ -217,8 +217,51 @@ void UKF::SigmaPointPrediction(MatrixXd* Xsig_out) {
  ******************************************************************************/
 
     //predict sigma points
+    double delta_t_2 = delta_t * delta_t;
+    int cols = 2 * n_aug + 1;
+
+    MatrixXd v_k = MatrixXd(1, cols);
+    v_k << Xsig_aug.row(2);
+
+    MatrixXd phi_k = MatrixXd(1, cols);
+    phi_k << Xsig_aug.row(3);
+
+    MatrixXd phi_dot_k = MatrixXd(1, cols);
+    phi_dot_k << Xsig_aug.row(4);
+
+    MatrixXd mu_a_k = MatrixXd(1, cols);
+    mu_a_k << Xsig_aug.row(5);
+
+    MatrixXd mu_phi_dotdot_k = MatrixXd(1, cols);
+    mu_phi_dotdot_k << Xsig_aug.row(6);
+
+    MatrixXd noise = MatrixXd(n_x, cols);
+    noise << (mu_a_k.array() * phi_k.array().cos()) * delta_t_2 / 2,
+            (mu_a_k.array() * phi_k.array().sin()) * delta_t_2 / 2,
+            mu_a_k.array() * delta_t,
+            mu_phi_dotdot_k.array() * delta_t_2 / 2,
+            mu_phi_dotdot_k.array() * delta_t;
+
     //avoid division by zero
+    MatrixXd xk_1 = MatrixXd(n_x, cols);
+    for (int i = 0; i < cols; i++) {
+        if (phi_dot_k(0, i) == 0) {
+            xk_1.col(i) << v_k(0, i) * cos(phi_k(0, i)) * delta_t,
+                    v_k(0, i) * sin(phi_k(0, i)) * delta_t,
+                    0,
+                    phi_dot_k(0, i) * delta_t,
+                    0;
+        } else {
+            xk_1.col(i) << (sin(phi_k(0, i) + phi_dot_k(0, i) * delta_t) - sin(phi_k(0, i))) * v_k(0, i) / phi_dot_k(0, i),
+                    (-cos(phi_k(0, i) + phi_dot_k(0, i) * delta_t) + cos(phi_k(0, i))) * v_k(0, i) / phi_dot_k(0, i),
+                    0,
+                    phi_dot_k(0, i) * delta_t,
+                    0;
+        }
+    }
+
     //write predicted sigma points into right column
+    Xsig_pred = Xsig_aug.block(0, 0, n_x, cols) + xk_1 + noise;
 
 
 /*******************************************************************************
